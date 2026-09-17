@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0891b2">
+    <meta name="description" content="Bản đồ vệ tinh Phường Long Hương, TP.HCM">
+    <title>Phường Long Hương - Bản Đồ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+        }
+
+        body {
+            background: #000;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 340px;
+            background: white;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+            overflow-y: auto;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            -webkit-overflow-scrolling: touch;
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #0891b2;
+            border-radius: 3px;
+        }
+
+        .sidebar-header {
+            background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+            color: white;
+            padding: 25px 20px;
+            border-bottom: 2px solid #0e7490;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            letter-spacing: -0.5px;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #0891b2;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px 12px;
+            background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(8, 145, 178, 0.3);
+        }
+
+        .layer-control {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            font-size: 13px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .layer-control input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+
+        .layer-control label {
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .layer-control:hover {
+            background: #f0f9ff;
+        }
+
+        .info-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+
+        .info-box h3 {
+            font-size: 12px;
+            font-weight: 700;
+            color: #0891b2;
+            margin-bottom: 8px;
+        }
+
+        .info-item {
+            font-size: 11px;
+            color: #475569;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .legend {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .legend h3 {
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: #0891b2;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 11px;
+        }
+
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+
+        /* Map */
+        .map-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Map Controls */
+        .map-control {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            z-index: 999;
+            padding: 12px;
+            font-size: 11px;
+            backdrop-filter: blur(10px);
+        }
+
+        .coordinates {
+            bottom: 20px;
+            left: 20px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .status {
+            bottom: 20px;
+            right: 20px;
+        }
+
+        .status.success {
+            color: #10b981;
+        }
+
+        /* Leaflet zoom control: moved to the right side, same side as the
+           layer-management control panel, stacked above the status box */
+        .leaflet-top.leaflet-left {
+            display: none;
+        }
+
+        .leaflet-bottom.leaflet-right {
+            bottom: 70px !important;
+            right: 20px !important;
+        }
+
+        .leaflet-control-zoom {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+        }
+
+/* Sidebar Close Button */
+        .sidebar-header {
+            position: relative;
+        }
+
+        .sidebar-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 28px;
+            height: 28px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background 0.2s;
+        }
+
+        .sidebar-close:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        /* Control Panel Toggle Button */
+        .control-panel-toggle {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(8, 145, 178, 0.3);
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: all 0.3s ease;
+        }
+
+        .control-panel-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(8, 145, 178, 0.4);
+        }
+
+        /* Control Panel */
+        .control-panel {
+            position: fixed;
+            right: 12px;
+            top: 70px;
+            width: 280px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+            z-index: 999;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+            transform: translateX(120%);
+            transition: transform 0.3s ease;
+            padding: 0;
+        }
+
+        .control-panel.active {
+            transform: translateX(0);
+        }
+
+        .control-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .control-panel::-webkit-scrollbar-thumb {
+            background: #0891b2;
+            border-radius: 3px;
+        }
+
+        .control-panel-header {
+            background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+            color: white;
+            padding: 16px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            border-bottom: 2px solid #0e7490;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-panel-content {
+            padding: 16px;
+        }
+
+        .control-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .control-item input[type="checkbox"] {
+            margin-right: 10px;
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+
+        .control-item label {
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .control-item:hover {
+            background: #f0f9ff;
+            margin: 0 -8px;
+            padding: 8px 8px;
+            border-radius: 4px;
+        }
+
+        .control-section {
+            margin-bottom: 16px;
+        }
+
+        .control-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #0891b2;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        /* Stats - Hidden */
+        .stats {
+            display: none !important;
+        }
+
+        /* Floating Search - Hidden */
+        .floating-search,
+        .floating-search-panel {
+            display: none !important;
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                height: 100vh;
+                position: fixed;
+                top: 0;
+                left: 0;
+                transform: translateX(-100%);
+                overflow-y: auto;
+                transition: transform 0.3s ease;
+                z-index: 1000;
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            .map-container {
+                width: 100%;
+                height: 100vh;
+            }
+
+            .control-panel-toggle {
+                top: 10px;
+                right: 10px;
+                width: 40px;
+                height: 40px;
+                font-size: 18px;
+            }
+
+            .control-panel {
+                right: 10px;
+                top: 60px;
+                width: 250px;
+            }
+
+            .sidebar-header {
+                padding: 16px 16px 12px;
+            }
+
+            .sidebar-header h1 {
+                font-size: 18px;
+            }
+
+            .sidebar-content {
+                padding: 12px 16px;
+            }
+
+            .section {
+                margin-bottom: 18px;
+            }
+
+            .coordinates {
+                bottom: 60px;
+                left: 10px;
+                font-size: 10px;
+                padding: 8px 10px;
+            }
+
+            .status {
+                bottom: 60px;
+                right: 10px;
+                font-size: 10px;
+                padding: 8px 10px;
+            }
+
+            .leaflet-bottom.leaflet-right {
+                bottom: 105px !important;
+                right: 10px !important;
+            }
+        }
+
+        @supports (padding: max(0px)) {
+            body {
+                padding-left: max(12px, env(safe-area-inset-left));
+                padding-right: max(12px, env(safe-area-inset-right));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="sidebar-close" onclick="closeSidebar()" title="Đóng">✕</button>
+                <h1>🗺️ Phường Long Hương</h1>
+                <p>TP.HCM</p>
+            </div>
+
+            <div class="sidebar-content">
+                <!-- Thửa Đất Info (populated on parcel click) -->
+                <div class="section" id="thuaInfoSection" style="display: none;">
+                    <div class="section-title">📍 Thông Tin Thửa Đất</div>
+                    <div id="thuaInfoContent"></div>
+                </div>
+
+                <!-- Controls -->
+                <div class="section">
+                    <div class="button-group">
+                        <button class="btn" onclick="resetMap()">🔄 Reset</button>
+                        <button class="btn" onclick="zoomToAll()">📍 Zoom All</button>
+                    </div>
+                </div>
+
+                <!-- Info -->
+                <div class="section">
+                    <div class="section-title">ℹ️ Thông Tin</div>
+                    <div class="info-box">
+                        <h3>GeoJSON Layers</h3>
+                        <div class="info-item">
+                            <span>Tổng lớp:</span>
+                            <strong id="layerCount">5</strong>
+                        </div>
+                        <div class="info-item">
+                            <span>Status:</span>
+                            <span id="dataStatus" style="color: #f59e0b;">⏳ Đang tải...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="section">
+                    <div class="legend">
+                        <h3>🎨 Viền Màu</h3>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #f97316;"></div>
+                            <span>Giao Thông</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #06b6d4;"></div>
+                            <span>Sông Ngòi</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #ef4444;"></div>
+                            <span>Ranh Phường</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #22c55e;"></div>
+                            <span>Ranh Khu Phố</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map -->
+        <div class="map-container">
+            <div id="map"></div>
+
+            <div class="map-control coordinates">
+                <div id="coordDisplay">Hover để xem tọa độ</div>
+            </div>
+
+            <div class="map-control status success">
+                ✓ Sẵn sàng
+            </div>
+
+            <!-- Control Panel Toggle Button -->
+            <button class="control-panel-toggle" onclick="toggleControlPanel()" title="Quản lý lớp">⚙️</button>
+
+            <!-- Right Control Panel -->
+            <div class="control-panel" id="controlPanel">
+                <div class="control-panel-header">HỆ THỐNG QUẢN LÝ LỚP</div>
+                <div class="control-panel-content">
+                    <!-- Basemap -->
+                    <div class="control-section">
+                        <div class="control-section-title">🗺️ Basemap</div>
+                        <div class="control-item">
+                            <input type="checkbox" id="control-basemap" checked onchange="toggleBasemap(this.checked)">
+                            <label for="control-basemap">Ảnh Vệ Tinh</label>
+                        </div>
+                    </div>
+
+                    <!-- Layers -->
+                    <div class="control-section">
+                        <div class="control-section-title">📍 Các Lớp</div>
+                        <div class="control-item">
+                            <input type="checkbox" id="control-giaothong" checked onchange="toggleLayer(this, 'giaothong')">
+                            <label for="control-giaothong">Giao Thông</label>
+                        </div>
+                        <div class="control-item">
+                            <input type="checkbox" id="control-songngoi" checked onchange="toggleLayer(this, 'songngoi')">
+                            <label for="control-songngoi">Sông Ngòi</label>
+                        </div>
+                        <div class="control-item">
+                            <input type="checkbox" id="control-thuadatcong" checked onchange="toggleLayer(this, 'thuadatcong')">
+                            <label for="control-thuadatcong">Thửa Đất Công</label>
+                        </div>
+                        <div class="control-item">
+                            <input type="checkbox" id="control-phuongline" checked onchange="toggleLayer(this, 'phuongline')">
+                            <label for="control-phuongline">Ranh Phường/Khu Phố</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const MAP_CENTER = [10.508760, 107.155479];
+        const MAP_ZOOM = 14;
+        const KHUPHO_MIN_ZOOM = 13;
+
+        // Get base path for GitHub Pages compatibility
+        const BASE_PATH = window.location.pathname.includes('github.io')
+            ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
+            : './';
+
+        console.log('BASE_PATH:', BASE_PATH);
+
+        // Color palette for land types
+        const LAND_TYPE_COLORS = {
+            'BHK': '#FFB3BA', 'CAN': '#FF0000', 'CLN': '#FFFFCC', 'DBV': '#FFB3BA',
+            'DCH': '#FFB3BA', 'DGD': '#ADD8E6', 'DGT': '#FFA500', 'DNL': '#FFB3BA',
+            'DTL': '#ADD8E6', 'DVH': '#ADD8E6', 'DYT': '#90EE90', 'CQP': '#FF0000',
+            'LUC': '#FFFFCC', 'LUK': '#FFFFCC', 'NTD': '#00008B', 'NTS': '#0000FF',
+            'ODT': '#DA70D6', 'ONT': '#DA70D6', 'SKC': '#00008B', 'SON': '#ADD8E6',
+            'TMD': '#FFB3BA', 'TSC': '#FFB3BA', 'RPH': '#90EE90', 'DTS': '#FFB3BA',
+            'DTT': '#FFB3BA', 'HNK': '#FFB3BA', 'DKV': '#FFB3BA', 'DSH': '#FFB3BA',
+            'DCS': '#FFB3BA', 'default': '#8b5cf6'
+        };
+
+        // Basemaps
+        const BASEMAPS = {
+            satellite: {
+                url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                attribution: '© Esri'
+            }
+        };
+
+        // State
+        let map = null;
+        let layers = {};
+        let khuphoLabels = null;
+        let basemapLayer = null;
+        let currentBasemap = 'satellite';
+
+        // Initialize
+        async function initMap() {
+    map = L.map('map', { zoomControl: false }).setView(MAP_CENTER, MAP_ZOOM);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    addBasemap('satellite');
+
+    map.on('mousemove', updateCoordinates);
+    map.on('zoomend', updateZoomLevel);
+    map.on('zoomend', updateKhuphoVisibility);
+
+    const basemapCheckbox = document.getElementById('control-basemap');
+
+    if (basemapCheckbox) {
+        basemapCheckbox.addEventListener('change', e => {
+            toggleBasemap(e.target.checked);
+        });
+    }
+
+    // QUAN TRỌNG:
+    // Chờ toàn bộ GeoJSON tải xong trước khi xử lý ID từ QR
+    await loadGeoJSON();
+
+    const params = getURLParams();
+
+    if (params.idthua) {
+        zoomToFeature(params.idthua);
+    }
+}
+
+        // Basemap
+        function addBasemap(type) {
+            if (basemapLayer) map.removeLayer(basemapLayer);
+            const bm = BASEMAPS[type];
+            basemapLayer = L.tileLayer(bm.url, { attribution: bm.attribution, maxZoom: 19 }).addTo(map);
+            currentBasemap = type;
+        }
+
+        function toggleBasemap(visible) {
+            if (visible) {
+                addBasemap('satellite');
+            } else {
+                if (basemapLayer) map.removeLayer(basemapLayer);
+            }
+        }
+
+        // Load Layers
+async function loadGeoJSON() {
+    try {
+        updateStatus('⏳ Đang tải...', 'loading');
+
+        const layerConfigs = {
+            giaothong: {
+                file: 'Giaothong.json',
+                name: 'Giao Thông'
+            },
+            songngoi: {
+                file: 'Songngoi.json',
+                name: 'Sông Ngòi'
+            },
+            thuadatcong: {
+                file: 'Thuadatcong.geojson',
+                name: 'Thửa Đất Công'
+            },
+            phuongline: {
+                file: 'Phuongline.json',
+                name: 'Ranh Phường/Khu Phố'
+            },
+            khupho: {
+                file: 'Khupho.json',
+                name: 'Khu Phố'
+            }
+        };
+
+        for (const [key, config] of Object.entries(layerConfigs)) {
+
+            const filePath = BASE_PATH + config.file;
+
+            const response = await fetch(filePath);
+
+            if (!response.ok) {
+                throw new Error(
+                    `Lỗi tải ${config.file}: ${response.status}`
+                );
+            }
+
+            const data = await response.json();
+
+            layers[key] = {
+                data: data,
+                layer: null,
+                name: config.name,
+                visible: true
+            };
+
+            renderLayer(key);
+        }
+
+        updateStats();
+
+        updateStatus('✓ Sẵn sàng', 'success');
+
+        document.getElementById('dataStatus').textContent = '✓ Đã tải';
+        document.getElementById('dataStatus').style.color = '#10b981';
+
+        // Có thể cập nhật visibility sau khi tạo layer
+        updateKhuphoVisibility();
+
+    } catch (error) {
+
+        console.error('Error:', error);
+
+        updateStatus('❌ Lỗi', 'error');
+
+        document.getElementById('dataStatus').textContent = '❌ Lỗi tải';
+        document.getElementById('dataStatus').style.color = '#ef4444';
+
+        // Quan trọng: báo lỗi cho initMap biết
+        throw error;
+    }
+}
+
+        // Render Layer
+        function renderLayer(key) {
+            const layerData = layers[key];
+            if (!layerData) return;
+
+            if (layerData.layer) map.removeLayer(layerData.layer);
+
+            let styleFunc, onEachFeatureFunc;
+
+            switch(key) {
+                case 'giaothong':
+                    styleFunc = () => ({ color: '#f97316', weight: 2, opacity: 1, fillOpacity: 0.3, fillColor: '#f97316' });
+                    onEachFeatureFunc = () => {};
+                    break;
+
+                case 'songngoi':
+                    styleFunc = () => ({ color: '#06b6d4', weight: 3, opacity: 1, fillOpacity: 0.3, fillColor: '#06b6d4' });
+                    onEachFeatureFunc = () => {};
+                    break;
+
+                case 'thuadatcong':
+                    styleFunc = feature => {
+                        const loai = feature.properties.LoaidatHT?.trim() || '';
+                        const color = LAND_TYPE_COLORS[loai] || LAND_TYPE_COLORS['default'];
+                        return { color: color, weight: 1, opacity: 1, fillOpacity: 0.6, fillColor: color };
+                    };
+                    onEachFeatureFunc = (feature, layer) => {
+                        const props = feature.properties || {};
+                        const idthua = getThuaId(props);
+                        const shareLink = generateShareLink(idthua);
+                        const dientich = props.Shape_Area ?? props.Dientich ?? 0;
+                        const nguoiSD = (props.Nguoisudun || '').trim();
+                        const quyetDinh = (props.Quyetdinh || '').trim();
+                        const infoHTML = `
+                            <div style="font-size: 12px; font-family: 'Inter', sans-serif;">
+                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+                                    <tr><td style="padding: 4px;"><strong>Số tờ:</strong></td><td style="padding: 4px;">${props.So_To || 'N/A'}</td></tr>
+                                    <tr><td style="padding: 4px;"><strong>Số thửa:</strong></td><td style="padding: 4px;">${props.Sothua || 'N/A'}</td></tr>
+                                    <tr><td style="padding: 4px;"><strong>Loại đất:</strong></td><td style="padding: 4px;">${props.LoaidatHT || 'N/A'}</td></tr>
+                                    <tr><td style="padding: 4px;"><strong>Người sử dụng:</strong></td><td style="padding: 4px;">${nguoiSD || 'N/A'}</td></tr>
+                                    <tr><td style="padding: 4px;"><strong>Diện tích:</strong></td><td style="padding: 4px;">${Math.round(dientich)} m²</td></tr>
+                                    <tr><td style="padding: 4px; vertical-align: top;"><strong>Quyết định giao đất:</strong></td><td style="padding: 4px;">${quyetDinh || 'N/A'}</td></tr>
+                                </table>
+                                <div style="display: flex; gap: 6px; margin-top: 10px;">
+                                    <button onclick="copyToClipboard('${shareLink}')" style="flex: 1; padding: 6px; background: #0891b2; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s;">📋 Sao Chép Link</button>
+                                    <button onclick="window.open('https://maps.google.com/maps?q=${layer.getBounds().getCenter().lat},${layer.getBounds().getCenter().lng}', '_blank')" style="flex: 1; padding: 6px; background: #06b6d4; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s;">🗺️ Google Maps</button>
+                                </div>
+                            </div>
+                        `;
+                        layer._infoHTML = infoHTML;
+                        layer.on('click', () => showThuaInfo(infoHTML));
+                    };
+                    break;
+
+                case 'phuongline':
+                    styleFunc = feature => {
+                        const ranh = feature.properties.Ranh?.trim() || '';
+                        const isPhương = ranh.includes('phường');
+                        return { color: isPhương ? '#ef4444' : '#22c55e', weight: isPhương ? 2 : 1, opacity: 1, fillOpacity: 0 };
+                    };
+                    onEachFeatureFunc = () => {};
+                    break;
+
+                case 'khupho':
+                    if (!khuphoLabels) {
+                        khuphoLabels = L.featureGroup().addTo(map);
+                    }
+                    styleFunc = () => ({ color: 'transparent', weight: 0, opacity: 0, fillOpacity: 0 });
+                    onEachFeatureFunc = (feature, layer) => {
+                        const props = feature.properties || {};
+                        if (props.Khuphomoi) {
+                            const bounds = layer.getBounds();
+                            const center = bounds.getCenter();
+                            const textMarker = L.marker(center, {
+                                icon: L.divIcon({
+                                    html: `<div style="font-size: 13px; font-weight: 700; color: #1f2937; text-align: center; pointer-events: none; text-shadow: 1px 1px 2px rgba(255,255,255,0.9); line-height: 1.2;">${props.Khuphomoi}</div>`,
+                                    iconSize: [140, 40],
+                                    className: 'khupho-label'
+                                })
+                            });
+                            khuphoLabels.addLayer(textMarker);
+                        }
+                    };
+                    break;
+            }
+
+            layerData.layer = L.geoJSON(layerData.data, { style: styleFunc, onEachFeature: onEachFeatureFunc });
+
+            if (key === 'thuadatcong') {
+                setTimeout(() => { layerData.layer.bringToFront(); }, 100);
+            }
+
+            if (layerData.visible) {
+                layerData.layer.addTo(map);
+            }
+        }
+
+        // Show the thửa đất details in the sidebar instead of a floating map popup,
+        // so the info panel never covers the selected parcel
+        function showThuaInfo(html) {
+            const section = document.getElementById('thuaInfoSection');
+            const content = document.getElementById('thuaInfoContent');
+            content.innerHTML = html;
+            section.style.display = 'block';
+
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.add('active');
+            sidebar.querySelector('.sidebar-content').scrollTop = 0;
+        }
+
+        // Toggle Layer
+        function toggleLayer(checkbox, key) {
+            if (!layers[key]) return;
+            layers[key].visible = checkbox.checked;
+            if (checkbox.checked) {
+                layers[key].layer.addTo(map);
+            } else {
+                map.removeLayer(layers[key].layer);
+            }
+        }
+
+        // Khupho Visibility
+        function updateKhuphoVisibility() {
+            if (!khuphoLabels) return;
+            const currentZoom = map.getZoom();
+            khuphoLabels.eachLayer(layer => {
+                layer.setOpacity(currentZoom >= KHUPHO_MIN_ZOOM ? 1 : 0);
+            });
+        }
+
+        // UI Controls
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('active');
+        }
+
+        function toggleControlPanel() {
+            document.getElementById('controlPanel').classList.toggle('active');
+        }
+
+        // Close sidebar when clicking on the map background.
+        // Clicks on a leaflet feature (e.g. a thửa đất polygon) must NOT close it here,
+        // otherwise the click that just opened the info box via showThuaInfo() would
+        // immediately close it again as this same click event bubbles up to document.
+        document.addEventListener('click', function(e) {
+            const sidebar = document.getElementById('sidebar');
+            if (e.target.closest('.leaflet-interactive')) return;
+            if (!sidebar.contains(e.target) && sidebar.classList.contains('active')) {
+                sidebar.classList.remove('active');
+            }
+        });
+
+        function resetMap() {
+            map.setView(MAP_CENTER, MAP_ZOOM);
+            updateStats();
+        }
+
+        function zoomToAll() {
+            let bounds = null;
+            for (const key of Object.keys(layers)) {
+                if (layers[key] && layers[key].layer) {
+                    const layerBounds = layers[key].layer.getBounds();
+                    if (layerBounds.isValid()) {
+                        bounds = bounds ? bounds.extend(layerBounds) : layerBounds;
+                    }
+                }
+            }
+            if (bounds && bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [100, 100] });
+            }
+        }
+
+        function updateStats() {
+            let total = 0;
+            for (const key of Object.keys(layers)) {
+                if (layers[key] && layers[key].data && layers[key].data.features) {
+                    total += layers[key].data.features.length;
+                }
+            }
+            const featureCountEl = document.getElementById('featureCount');
+            if (featureCountEl) featureCountEl.textContent = total;
+        }
+
+        function updateZoomLevel() {
+            const zoomLevelEl = document.getElementById('zoomLevel');
+            if (zoomLevelEl) zoomLevelEl.textContent = map.getZoom();
+        }
+
+        function updateCoordinates(e) {
+            const lat = e.latlng.lat.toFixed(6);
+            const lng = e.latlng.lng.toFixed(6);
+            document.getElementById('coordDisplay').textContent = `${lat}, ${lng}`;
+        }
+
+        function updateStatus(text, type) {
+            const status = document.querySelector('.status');
+            status.textContent = text;
+            status.className = `map-control status ${type}`;
+        }
+
+        // URL Parameters
+        function getURLParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                idthua: params.get('idthua')
+            };
+        }
+
+        // ID thửa của lớp Thuadatcong.geojson: "Sốthửa.Sốtờ" (vd: 222.74)
+        function getThuaId(props) {
+            if (!props) return 'N/A';
+            if (props.ID) return String(props.ID);
+            if (props.idthua || props.Id_Thua) return String(props.idthua || props.Id_Thua);
+            if (props.Sothua && props.So_To) return `${props.Sothua}.${props.So_To}`;
+            return 'N/A';
+        }
+
+        function zoomToFeature(featureId) {
+            if (!layers.thuadatcong || !layers.thuadatcong.data) return;
+
+            const features = layers.thuadatcong.data.features || [];
+            const feature = features.find(f => getThuaId(f.properties) === String(featureId));
+
+            if (!feature || !layers.thuadatcong.layer) return;
+
+            layers.thuadatcong.layer.eachLayer(layer => {
+                if (layer.feature && getThuaId(layer.feature.properties) === String(featureId)) {
+                    const bounds = layer.getBounds();
+                    map.fitBounds(bounds, { padding: [100, 100], maxZoom: 16 });
+                    setTimeout(() => {
+                        showThuaInfo(layer._infoHTML);
+                    }, 300);
+                }
+            });
+        }
+
+        function generateShareLink(idthua) {
+            const baseUrl = window.location.origin + window.location.pathname;
+            return `${baseUrl}?idthua=${idthua}`;
+        }
+
+        function copyToClipboard(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('✓ Link đã sao chép vào clipboard!');
+                }).catch(err => {
+                    fallbackCopyToClipboard(text);
+                });
+            } else {
+                fallbackCopyToClipboard(text);
+            }
+        }
+
+        function fallbackCopyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                alert('✓ Link đã sao chép vào clipboard!');
+            } catch (err) {
+                alert('❌ Không thể sao chép. Vui lòng thử lại.');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // Start
+window.addEventListener('load', async function() {
+    try {
+        await initMap();
+    } catch (error) {
+        console.error('Không thể khởi tạo bản đồ:', error);
+    }
+});
+    </script>
+</body>
+</html>
