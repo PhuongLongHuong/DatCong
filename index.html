@@ -831,9 +831,8 @@ async function loadGeoJSON() {
                         const dientich = props.Shape_Area ?? props.Dientich ?? 0;
                         const nguoiSD = (props.Nguoisudun || '').trim();
                         const quyetDinh = (props.Quyetdinh || '').trim();
-                        const popupHTML = `
-                            <div style="min-width: 280px; font-size: 12px; font-family: 'Inter', sans-serif;">
-                                <strong style="color: #0891b2;">THỬA ĐẤT CÔNG</strong><hr style="margin: 5px 0; border: none; border-top: 1px solid #e5e7eb;">
+                        const infoHTML = `
+                            <div style="font-size: 12px; font-family: 'Inter', sans-serif;">
                                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
                                     <tr><td style="padding: 4px;"><strong>Số tờ:</strong></td><td style="padding: 4px;">${props.So_To || 'N/A'}</td></tr>
                                     <tr><td style="padding: 4px;"><strong>Số thửa:</strong></td><td style="padding: 4px;">${props.Sothua || 'N/A'}</td></tr>
@@ -848,8 +847,11 @@ async function loadGeoJSON() {
                                 </div>
                             </div>
                         `;
-                        layer.bindPopup(popupHTML);
-                        layer.on('click', () => highlightThua(layer));
+                        layer._infoHTML = infoHTML;
+                        layer.on('click', () => {
+                            showThuaInfo(infoHTML);
+                            highlightThua(layer);
+                        });
                     };
                     break;
 
@@ -1029,7 +1031,7 @@ async function loadGeoJSON() {
                     map.fitBounds(bounds, { padding: [100, 100], maxZoom: 16 });
                     highlightThua(layer);
                     setTimeout(() => {
-                        layer.openPopup();
+                        showThuaInfo(layer._infoHTML);
                     }, 300);
                 }
             });
