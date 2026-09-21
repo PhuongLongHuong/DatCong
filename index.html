@@ -710,80 +710,92 @@
             }
         }
 
-        // Load Layers
-async function loadGeoJSON() {
-    try {
-        updateStatus('⏳ Đang tải...', 'loading');
-
-        const layerConfigs = {
-            giaothong: {
-                file: 'Giaothong.json',
-                name: 'Giao Thông'
-            },
-            songngoi: {
-                file: 'Songngoi.json',
-                name: 'Sông Ngòi'
-            },
-            thuadatcong: {
-                file: 'Thuadatcong.geojson',
-                name: 'Thửa Đất Công'
-            },
-            phuongline: {
-                file: 'Phuongline.json',
-                name: 'Ranh Phường/Khu Phố'
-            },
-            khupho: {
-                file: 'Khupho.json',
-                name: 'Khu Phố'
+        // Fetch one layer's JSON, retrying once on failure (GitHub Pages'
+        // CDN can be slow/flaky on a cold cache for the first visit).
+        async function fetchLayerData(filePath, retries = 1) {
+            let lastError;
+            for (let attempt = 0; attempt <= retries; attempt++) {
+                try {
+                    const response = await fetch(filePath);
+                    if (!response.ok) {
+                        throw new Error(`Lỗi tải ${filePath}: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (err) {
+                    lastError = err;
+                }
             }
-        };
-
-        for (const [key, config] of Object.entries(layerConfigs)) {
-
-            const filePath = BASE_PATH + config.file;
-
-            const response = await fetch(filePath);
-
-            if (!response.ok) {
-                throw new Error(
-                    `Lỗi tải ${config.file}: ${response.status}`
-                );
-            }
-
-            const data = await response.json();
-
-            layers[key] = {
-                data: data,
-                layer: null,
-                name: config.name,
-                visible: true
-            };
-
-            renderLayer(key);
+            throw lastError;
         }
 
-        updateStats();
+        // Load Layers
+async function loadGeoJSON() {
+    updateStatus('⏳ Đang tải...', 'loading');
 
+    const layerConfigs = {
+        giaothong: {
+            file: 'Giaothong.json',
+            name: 'Giao Thông'
+        },
+        songngoi: {
+            file: 'Songngoi.json',
+            name: 'Sông Ngòi'
+        },
+        thuadatcong: {
+            file: 'Thuadatcong.geojson',
+            name: 'Thửa Đất Công'
+        },
+        phuongline: {
+            file: 'Phuongline.json',
+            name: 'Ranh Phường/Khu Phố'
+        },
+        khupho: {
+            file: 'Khupho.json',
+            name: 'Khu Phố'
+        }
+    };
+
+    // Fetch every layer in parallel, and keep each layer's success/failure
+    // isolated: one slow or failed file (e.g. Giaothong.json) must not stop
+    // Thuadatcong.geojson (the layer with the click-to-show-info handlers)
+    // from loading and rendering. Previously this was a sequential loop that
+    // threw and aborted the whole pipeline on the first failed fetch, so on
+    // a cold GitHub Pages cache the info box would silently never wire up
+    // until the user reloaded the page.
+    const entries = Object.entries(layerConfigs);
+    const results = await Promise.allSettled(entries.map(async ([key, config]) => {
+        const data = await fetchLayerData(BASE_PATH + config.file);
+        layers[key] = {
+            data: data,
+            layer: null,
+            name: config.name,
+            visible: true
+        };
+        renderLayer(key);
+    }));
+
+    const failedKeys = results
+        .map((result, i) => ({ result, key: entries[i][0] }))
+        .filter(({ result }) => result.status === 'rejected');
+
+    failedKeys.forEach(({ result, key }) => {
+        console.error(`Lỗi tải lớp "${key}":`, result.reason);
+    });
+
+    updateStats();
+
+    if (failedKeys.length === 0) {
         updateStatus('✓ Sẵn sàng', 'success');
-
         document.getElementById('dataStatus').textContent = '✓ Đã tải';
         document.getElementById('dataStatus').style.color = '#10b981';
-
-        // Có thể cập nhật visibility sau khi tạo layer
-        updateKhuphoVisibility();
-
-    } catch (error) {
-
-        console.error('Error:', error);
-
-        updateStatus('❌ Lỗi', 'error');
-
-        document.getElementById('dataStatus').textContent = '❌ Lỗi tải';
-        document.getElementById('dataStatus').style.color = '#ef4444';
-
-        // Quan trọng: báo lỗi cho initMap biết
-        throw error;
+    } else {
+        updateStatus('⚠️ Thiếu dữ liệu', 'error');
+        document.getElementById('dataStatus').textContent = `⚠️ Lỗi ${failedKeys.length} lớp`;
+        document.getElementById('dataStatus').style.color = '#f59e0b';
     }
+
+    // Có thể cập nhật visibility sau khi tạo layer
+    updateKhuphoVisibility();
 }
 
         // Render Layer
