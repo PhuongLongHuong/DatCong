@@ -662,6 +662,18 @@
         let khuphoLabels = null;
         let basemapLayer = null;
         let currentBasemap = 'satellite';
+        let selectedThuaLayer = null;
+
+        // Highlight the ranh (border) of the selected/QR-scanned thửa in red,
+        // resetting whichever thửa was previously highlighted.
+        function highlightThua(layer) {
+            if (selectedThuaLayer && selectedThuaLayer !== layer && layers.thuadatcong && layers.thuadatcong.layer) {
+                layers.thuadatcong.layer.resetStyle(selectedThuaLayer);
+            }
+            layer.setStyle({ color: '#ff0000', weight: 4 });
+            layer.bringToFront();
+            selectedThuaLayer = layer;
+        }
 
         // Initialize
         async function initMap() {
@@ -710,92 +722,80 @@
             }
         }
 
-        // Fetch one layer's JSON, retrying once on failure (GitHub Pages'
-        // CDN can be slow/flaky on a cold cache for the first visit).
-        async function fetchLayerData(filePath, retries = 1) {
-            let lastError;
-            for (let attempt = 0; attempt <= retries; attempt++) {
-                try {
-                    const response = await fetch(filePath);
-                    if (!response.ok) {
-                        throw new Error(`Lỗi tải ${filePath}: ${response.status}`);
-                    }
-                    return await response.json();
-                } catch (err) {
-                    lastError = err;
-                }
-            }
-            throw lastError;
-        }
-
         // Load Layers
 async function loadGeoJSON() {
-    updateStatus('⏳ Đang tải...', 'loading');
+    try {
+        updateStatus('⏳ Đang tải...', 'loading');
 
-    const layerConfigs = {
-        giaothong: {
-            file: 'Giaothong.json',
-            name: 'Giao Thông'
-        },
-        songngoi: {
-            file: 'Songngoi.json',
-            name: 'Sông Ngòi'
-        },
-        thuadatcong: {
-            file: 'Thuadatcong.geojson',
-            name: 'Thửa Đất Công'
-        },
-        phuongline: {
-            file: 'Phuongline.json',
-            name: 'Ranh Phường/Khu Phố'
-        },
-        khupho: {
-            file: 'Khupho.json',
-            name: 'Khu Phố'
-        }
-    };
-
-    // Fetch every layer in parallel, and keep each layer's success/failure
-    // isolated: one slow or failed file (e.g. Giaothong.json) must not stop
-    // Thuadatcong.geojson (the layer with the click-to-show-info handlers)
-    // from loading and rendering. Previously this was a sequential loop that
-    // threw and aborted the whole pipeline on the first failed fetch, so on
-    // a cold GitHub Pages cache the info box would silently never wire up
-    // until the user reloaded the page.
-    const entries = Object.entries(layerConfigs);
-    const results = await Promise.allSettled(entries.map(async ([key, config]) => {
-        const data = await fetchLayerData(BASE_PATH + config.file);
-        layers[key] = {
-            data: data,
-            layer: null,
-            name: config.name,
-            visible: true
+        const layerConfigs = {
+            giaothong: {
+                file: 'Giaothong.json',
+                name: 'Giao Thông'
+            },
+            songngoi: {
+                file: 'Songngoi.json',
+                name: 'Sông Ngòi'
+            },
+            thuadatcong: {
+                file: 'Thuadatcong.geojson',
+                name: 'Thửa Đất Công'
+            },
+            phuongline: {
+                file: 'Phuongline.json',
+                name: 'Ranh Phường/Khu Phố'
+            },
+            khupho: {
+                file: 'Khupho.json',
+                name: 'Khu Phố'
+            }
         };
-        renderLayer(key);
-    }));
 
-    const failedKeys = results
-        .map((result, i) => ({ result, key: entries[i][0] }))
-        .filter(({ result }) => result.status === 'rejected');
+        for (const [key, config] of Object.entries(layerConfigs)) {
 
-    failedKeys.forEach(({ result, key }) => {
-        console.error(`Lỗi tải lớp "${key}":`, result.reason);
-    });
+            const filePath = BASE_PATH + config.file;
 
-    updateStats();
+            const response = await fetch(filePath);
 
-    if (failedKeys.length === 0) {
+            if (!response.ok) {
+                throw new Error(
+                    `Lỗi tải ${config.file}: ${response.status}`
+                );
+            }
+
+            const data = await response.json();
+
+            layers[key] = {
+                data: data,
+                layer: null,
+                name: config.name,
+                visible: true
+            };
+
+            renderLayer(key);
+        }
+
+        updateStats();
+
         updateStatus('✓ Sẵn sàng', 'success');
+
         document.getElementById('dataStatus').textContent = '✓ Đã tải';
         document.getElementById('dataStatus').style.color = '#10b981';
-    } else {
-        updateStatus('⚠️ Thiếu dữ liệu', 'error');
-        document.getElementById('dataStatus').textContent = `⚠️ Lỗi ${failedKeys.length} lớp`;
-        document.getElementById('dataStatus').style.color = '#f59e0b';
-    }
 
-    // Có thể cập nhật visibility sau khi tạo layer
-    updateKhuphoVisibility();
+        // Có thể cập nhật visibility sau khi tạo layer
+        updateKhuphoVisibility();
+
+    } catch (error) {
+
+        console.error('Error:', error);
+
+        updateStatus('❌ Lỗi', 'error');
+
+        document.getElementById('dataStatus').textContent = '❌ Lỗi tải';
+        document.getElementById('dataStatus').style.color = '#ef4444';
+
+        // Quan trọng: báo lỗi cho initMap biết
+        throw error;
+    }
 }
 
         // Render Layer
@@ -831,8 +831,9 @@ async function loadGeoJSON() {
                         const dientich = props.Shape_Area ?? props.Dientich ?? 0;
                         const nguoiSD = (props.Nguoisudun || '').trim();
                         const quyetDinh = (props.Quyetdinh || '').trim();
-                        const infoHTML = `
-                            <div style="font-size: 12px; font-family: 'Inter', sans-serif;">
+                        const popupHTML = `
+                            <div style="min-width: 280px; font-size: 12px; font-family: 'Inter', sans-serif;">
+                                <strong style="color: #0891b2;">THỬA ĐẤT CÔNG</strong><hr style="margin: 5px 0; border: none; border-top: 1px solid #e5e7eb;">
                                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
                                     <tr><td style="padding: 4px;"><strong>Số tờ:</strong></td><td style="padding: 4px;">${props.So_To || 'N/A'}</td></tr>
                                     <tr><td style="padding: 4px;"><strong>Số thửa:</strong></td><td style="padding: 4px;">${props.Sothua || 'N/A'}</td></tr>
@@ -847,8 +848,8 @@ async function loadGeoJSON() {
                                 </div>
                             </div>
                         `;
-                        layer._infoHTML = infoHTML;
-                        layer.on('click', () => showThuaInfo(infoHTML));
+                        layer.bindPopup(popupHTML);
+                        layer.on('click', () => highlightThua(layer));
                     };
                     break;
 
@@ -1026,8 +1027,9 @@ async function loadGeoJSON() {
                 if (layer.feature && getThuaId(layer.feature.properties) === String(featureId)) {
                     const bounds = layer.getBounds();
                     map.fitBounds(bounds, { padding: [100, 100], maxZoom: 16 });
+                    highlightThua(layer);
                     setTimeout(() => {
-                        showThuaInfo(layer._infoHTML);
+                        layer.openPopup();
                     }, 300);
                 }
             });
